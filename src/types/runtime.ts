@@ -103,6 +103,15 @@ export const AppConfig = type.type({
 			showCounters: type.boolean,
 		}),
 	}),
+	llmTranslator: type.type({
+		apiUrl: type.string,
+		apiKey: type.string,
+		model: type.string,
+		temperature: type.number,
+		systemPrompt: type.string,
+		customPrompt: type.string,
+	}),
 });
 
 export type AppConfigType = TypeOf<typeof AppConfig>;
+export type LLMTranslatorConfig = AppConfigType['llmTranslator'];

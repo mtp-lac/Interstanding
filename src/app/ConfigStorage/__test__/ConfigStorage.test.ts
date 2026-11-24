@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 
-import { defaultConfig } from '../../../config';
+import { defaultConfig, defaultLLMTranslatorConfig } from '../../../config';
 import { clearAllMocks } from '../../../lib/tests';
 import { AppConfigType } from '../../../types/runtime';
 
@@ -9,7 +9,7 @@ import { ConfigStorageMigration } from '../ConfigStorage.migrations';
 import configVersion1 from './config-v1.json';
 import configVersion3 from './config-v3.json';
 
-const latestVersion = 10;
+const latestVersion = 11;
 
 describe('config migrations', () => {
 	beforeAll(clearAllMocks);
@@ -25,6 +25,43 @@ describe('config migrations', () => {
 
 		expect(appConfig).toEqual(configVersion3);
 		expect(localStorage.getItem('config.Main')).toBeNull();
+	});
+
+	test('migrate config from v10 to v11 adds default llmTranslator config', async () => {
+		await clearAllMocks();
+		await browser.storage.local.set({
+			appConfig: {
+				...defaultConfig,
+				llmTranslator: undefined,
+			},
+		});
+
+		await ConfigStorageMigration.migrate(10, 11);
+
+		const { appConfig } = await browser.storage.local.get('appConfig');
+		expect(appConfig.llmTranslator).toEqual(defaultLLMTranslatorConfig);
+		await clearAllMocks();
+	});
+
+	test('migrate config from v10 to v11 preserves partial llmTranslator config', async () => {
+		await clearAllMocks();
+		await browser.storage.local.set({
+			appConfig: {
+				...defaultConfig,
+				llmTranslator: {
+					model: 'custom-model',
+				},
+			},
+		});
+
+		await ConfigStorageMigration.migrate(10, 11);
+
+		const { appConfig } = await browser.storage.local.get('appConfig');
+		expect(appConfig.llmTranslator).toEqual({
+			...defaultLLMTranslatorConfig,
+			model: 'custom-model',
+		});
+		await clearAllMocks();
 	});
 
 	test('migrate config v0 to latest version', async () => {

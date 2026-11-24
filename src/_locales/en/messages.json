@@ -315,6 +315,45 @@
 	"settings_option_history_enable_desc": {
 		"message": "When enabled, translations will be recorded and appear on the <slot id=historyPage>history page</slot>"
 	},
+	"settings_option_llmTranslator": {
+		"message": "LLM translator (OpenAI-compatible)"
+	},
+	"settings_option_llmTranslator_apiKey": {
+		"message": "API key"
+	},
+	"settings_option_llmTranslator_apiKey_desc": {
+		"message": "Bearer API key for your LLM provider (leave empty for local servers without authentication such as Ollama)"
+	},
+	"settings_option_llmTranslator_apiUrl": {
+		"message": "API base URL"
+	},
+	"settings_option_llmTranslator_apiUrl_desc": {
+		"message": "OpenAI-compatible API endpoint (e.g., https://api.openai.com/v1, https://openrouter.ai/api/v1, http://localhost:11434/v1)"
+	},
+	"settings_option_llmTranslator_customPrompt": {
+		"message": "Custom translation prompt"
+	},
+	"settings_option_llmTranslator_customPrompt_desc": {
+		"message": "Prompt template sent for translation. Placeholders: {{from}}, {{to}}, {{fromCode}}, {{toCode}}, {{texts}} (JSON array of texts; appended automatically if omitted)"
+	},
+	"settings_option_llmTranslator_model": {
+		"message": "Model"
+	},
+	"settings_option_llmTranslator_model_desc": {
+		"message": "Model identifier (e.g., gpt-4o-mini, gpt-4.1-mini, deepseek-chat, qwen2.5, translategemma)"
+	},
+	"settings_option_llmTranslator_systemPrompt": {
+		"message": "System prompt"
+	},
+	"settings_option_llmTranslator_systemPrompt_desc": {
+		"message": "System instructions defining translator persona, tone, or glossary. Supports {{from}}, {{to}}, {{fromCode}}, {{toCode}}"
+	},
+	"settings_option_llmTranslator_temperature": {
+		"message": "Temperature"
+	},
+	"settings_option_llmTranslator_temperature_desc": {
+		"message": "Sampling temperature (0 for deterministic translations, e.g., 0 to 1)"
+	},
 	"settings_option_pageTranslation": {
 		"message": "The full page translation"
 	},

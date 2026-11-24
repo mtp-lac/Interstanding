@@ -99,6 +99,81 @@ export const generateTree = ({
 					},
 				},
 				{
+					title: getMessage('settings_option_llmTranslator'),
+					groupContent: [
+						{
+							title: getMessage('settings_option_llmTranslator_apiUrl'),
+							description: getMessage(
+								'settings_option_llmTranslator_apiUrl_desc',
+							),
+							path: 'llmTranslator.apiUrl',
+							optionContent: {
+								type: 'InputText',
+								placeholder: 'https://api.openai.com/v1',
+							},
+						},
+						{
+							title: getMessage('settings_option_llmTranslator_apiKey'),
+							description: getMessage(
+								'settings_option_llmTranslator_apiKey_desc',
+							),
+							path: 'llmTranslator.apiKey',
+							optionContent: {
+								type: 'InputText',
+								password: true,
+								placeholder: 'sk-...',
+							},
+						},
+						{
+							title: getMessage('settings_option_llmTranslator_model'),
+							description: getMessage(
+								'settings_option_llmTranslator_model_desc',
+							),
+							path: 'llmTranslator.model',
+							optionContent: {
+								type: 'InputText',
+								placeholder: 'gpt-4o-mini',
+							},
+						},
+						{
+							title: getMessage(
+								'settings_option_llmTranslator_temperature',
+							),
+							description: getMessage(
+								'settings_option_llmTranslator_temperature_desc',
+							),
+							path: 'llmTranslator.temperature',
+							optionContent: {
+								type: 'InputNumber',
+							},
+						},
+						{
+							title: getMessage(
+								'settings_option_llmTranslator_systemPrompt',
+							),
+							description: getMessage(
+								'settings_option_llmTranslator_systemPrompt_desc',
+							),
+							path: 'llmTranslator.systemPrompt',
+							optionContent: {
+								type: 'InputMultiline',
+							},
+						},
+						{
+							title: getMessage(
+								'settings_option_llmTranslator_customPrompt',
+							),
+							description: getMessage(
+								'settings_option_llmTranslator_customPrompt_desc',
+							),
+							path: 'llmTranslator.customPrompt',
+							optionContent: {
+								type: 'InputMultiline',
+							},
+						},
+					],
+				},
+				{
 					title: getMessage('settings_option_translateScheduler'),
 					groupContent: [
 						{

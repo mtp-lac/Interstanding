@@ -9,7 +9,8 @@ import { RecordValues } from '../../../types/utils';
 import { TranslatorsCacheStorage } from '../TranslatorsCacheStorage';
 import { TranslatorsMap } from '..';
 
-export type Config = Pick<AppConfigType, 'translatorModule' | 'scheduler' | 'cache'>;
+export type Config = Pick<AppConfigType, 'translatorModule' | 'scheduler' | 'cache'> &
+	Partial<Pick<AppConfigType, 'llmTranslator'>>;
 
 /**
  * Build and manage a translation scheduler
@@ -87,6 +88,7 @@ export class TranslatorManager<Translators extends TranslatorsMap = TranslatorsM
 		if (!forceCreate && this.translator !== null) return this.translator;
 
 		const translatorClass = this.getTranslatorClass();
+		const llmConfig = this.config.llmTranslator;
 
 		this.translator = new (class extends translatorClass {
 			async translate(
@@ -128,7 +130,7 @@ export class TranslatorManager<Translators extends TranslatorsMap = TranslatorsM
 					throw error;
 				}
 			}
-		})() as InstanceType<RecordValues<Translators>>;
+		})(llmConfig) as InstanceType<RecordValues<Translators>>;
 
 		return this.translator;
 	}

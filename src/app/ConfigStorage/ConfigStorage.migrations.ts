@@ -1,6 +1,11 @@
 import browser from 'webextension-polyfill';
 
-import { DEFAULT_TRANSLATOR, DEFAULT_TTS, defaultConfig } from '../../config';
+import {
+	DEFAULT_TRANSLATOR,
+	DEFAULT_TTS,
+	defaultConfig,
+	defaultLLMTranslatorConfig,
+} from '../../config';
 import { createMigrationTask, Migration } from '../../lib/migrations/createMigrationTask';
 import { decodeStruct } from '../../lib/types';
 import { AppConfig } from '../../types/runtime';
@@ -211,6 +216,40 @@ const migrations: Migration[] = [
 
 			// Write data
 			await browser.storage.local.set({ [storageName]: actualData });
+		},
+	},
+	{
+		version: 11,
+		async migrate() {
+			const storageName = 'appConfig';
+
+			let { [storageName]: actualData } =
+				await browser.storage.local.get(storageName);
+			if (
+				actualData === null ||
+				typeof actualData !== 'object' ||
+				Array.isArray(actualData)
+			) {
+				actualData = {};
+			}
+
+			const existingLlmConfig =
+				actualData.llmTranslator !== null &&
+				typeof actualData.llmTranslator === 'object' &&
+				!Array.isArray(actualData.llmTranslator)
+					? actualData.llmTranslator
+					: {};
+
+			const updatedConfig = {
+				...actualData,
+				llmTranslator: {
+					...defaultLLMTranslatorConfig,
+					...existingLlmConfig,
+				},
+			};
+
+			// Write data
+			await browser.storage.local.set({ [storageName]: updatedConfig });
 		},
 	},
 ];

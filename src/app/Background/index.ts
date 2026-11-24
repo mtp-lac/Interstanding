@@ -11,6 +11,7 @@ import { createSelector } from '../../lib/effector/createSelector';
 import { TELEMETRY_EVENT_NAME } from '../../lib/telemetry';
 import { telemetry } from '../../lib/telemetry/singleton';
 import { BergamotTranslator } from '../../lib/translators/bergamot/BergamotTranslator';
+import { OpenAICompatibleLLMTranslator } from '../../lib/translators/llm';
 import {
 	createPromiseWithControls,
 	PromiseWithControls,
@@ -20,6 +21,7 @@ import { AppConfigType } from '../../types/runtime';
 
 import { ObservableAsyncStorage } from '../ConfigStorage/ConfigStorage';
 import { TranslatorManager } from './TranslatorManager';
+import { TranslatorsCacheStorage } from './TranslatorsCacheStorage';
 import { TTSController } from './TTS/TTSController';
 import { TTSManager } from './TTS/TTSManager';
 
@@ -68,6 +70,7 @@ export const embeddedTranslators = {
 	AutoTranslator,
 	GoogleTranslator: AggregatedGoogleTranslator,
 	BergamotTranslator,
+	LLMTranslator: OpenAICompatibleLLMTranslator,
 } as const;
 
 /**
@@ -131,10 +134,11 @@ export class Background {
 		const $config = await this.config.getObservableStore();
 		const $translateManagerConfig = createSelector(
 			$config,
-			({ scheduler, translatorModule, cache }) => ({
+			({ scheduler, translatorModule, cache, llmTranslator }) => ({
 				scheduler,
 				translatorModule,
 				cache,
+				llmTranslator,
 			}),
 			{
 				updateFilter: (update, state) => !isEqual(update, state),
@@ -157,6 +161,17 @@ export class Background {
 			}
 
 			this.translateManager.setConfig(config);
+		});
+
+		// Clear LLM cache when LLM settings or custom prompts change
+		let previousLlmConfig = $config.getState().llmTranslator;
+		$config.updates.watch(({ llmTranslator }) => {
+			if (!isEqual(llmTranslator, previousLlmConfig)) {
+				previousLlmConfig = llmTranslator;
+				new TranslatorsCacheStorage('LLMTranslator').clear().catch((error) => {
+					console.warn('Failed to clear LLMTranslator cache', error);
+				});
+			}
 		});
 
 		// Update TTS module

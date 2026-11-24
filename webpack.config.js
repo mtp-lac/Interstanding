@@ -172,6 +172,7 @@ module.exports = {
 				{
 					from: 'thirdparty/bergamot/build/*.{js,wasm}',
 					to: path.join(outputPath, 'thirdparty/bergamot/[name][ext]'),
+					noErrorOnMissing: true,
 				},
 
 				// Serve static files

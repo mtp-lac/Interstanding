@@ -146,3 +146,68 @@ describe('TranslatorManager consider cache preferences', () => {
 		expect(translateFn2).not.toBeCalled();
 	});
 });
+
+test('TranslatorManager passes llmTranslator config to translator constructor and updates on setConfig', async () => {
+	const receivedConfigs: unknown[] = [];
+
+	class ConfigAwareTranslator {
+		private readonly label: string;
+		constructor(llmConfig?: { model?: string }) {
+			receivedConfigs.push(llmConfig);
+			this.label = llmConfig?.model ?? 'default';
+		}
+
+		translate = vi.fn((text: string) => Promise.resolve(`${this.label}:${text}`));
+		translateBatch = vi.fn((texts: string[]) =>
+			Promise.all(texts.map((text) => this.translate(text))),
+		);
+		getLengthLimit = () => 4000;
+		getRequestsTimeout = () => 0;
+		checkLimitExceeding = () => 0;
+
+		static isSupportedAutoFrom = () => true;
+		static getSupportedLanguages = () => ['en', 'de'];
+		static translatorName = 'ConfigAware';
+		static isRequiredKey = () => false;
+	}
+
+	const initialLlmConfig = {
+		apiUrl: 'https://api.openai.com/v1',
+		apiKey: 'sk-1',
+		model: 'model-a',
+		temperature: 0,
+		systemPrompt: 'sys',
+		customPrompt: 'user {{texts}}',
+	};
+
+	const translatorManager = new TranslatorManager(
+		{
+			...defaultConfig,
+			translatorModule: 'llm',
+			scheduler: { ...defaultConfig.scheduler, useCache: false },
+			llmTranslator: initialLlmConfig,
+		},
+		{ llm: ConfigAwareTranslator },
+	);
+
+	await expect(
+		translatorManager.getScheduler().translate('hi', 'en', 'de'),
+	).resolves.toBe('model-a:hi');
+	expect(receivedConfigs[0]).toEqual(initialLlmConfig);
+
+	const updatedLlmConfig = {
+		...initialLlmConfig,
+		model: 'model-b',
+	};
+	translatorManager.setConfig({
+		...defaultConfig,
+		translatorModule: 'llm',
+		scheduler: { ...defaultConfig.scheduler, useCache: false },
+		llmTranslator: updatedLlmConfig,
+	});
+
+	await expect(
+		translatorManager.getScheduler().translate('hi', 'en', 'de'),
+	).resolves.toBe('model-b:hi');
+	expect(receivedConfigs[1]).toEqual(updatedLlmConfig);
+});

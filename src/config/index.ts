@@ -1,8 +1,10 @@
 import { isMobileBrowser } from '../lib/browser';
 import { getUserLanguage } from '../lib/language';
+import { defaultLLMTranslatorConfig } from '../lib/translators/llm/defaults';
 import { AppConfigType } from '../types/runtime';
 import noTranslateSelectors from './no-translate-selectors.txt';
 
+export { defaultLLMTranslatorConfig };
 export const DEFAULT_TRANSLATOR = 'AutoTranslator';
 export const DEFAULT_TTS = 'google';
 
@@ -64,4 +66,5 @@ export const defaultConfig: AppConfigType = {
 			showCounters: true,
 		},
 	},
+	llmTranslator: defaultLLMTranslatorConfig,
 };

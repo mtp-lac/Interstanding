@@ -9,6 +9,18 @@ exports[`config migrations > migrate config v0 to latest version 1`] = `
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
@@ -129,6 +141,18 @@ exports[`config migrations > race condition detection > Detection race condition
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
@@ -249,6 +273,18 @@ exports[`config migrations > race condition detection > Detection race condition
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
@@ -369,6 +405,18 @@ exports[`config migrations > race condition detection > Detection race condition
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
@@ -489,6 +537,18 @@ exports[`config migrations > race condition detection > Detection race condition
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
@@ -609,6 +669,18 @@ exports[`config migrations > race condition detection > Detection race condition
     "enabled": true,
   },
   "language": "en",
+  "llmTranslator": {
+    "apiKey": "",
+    "apiUrl": "https://api.openai.com/v1",
+    "customPrompt": "Translate the following JSON array of texts from {{from}} to {{to}}.
+If the source language is "auto", detect the source language automatically.
+Return ONLY a valid JSON array of translated strings with the exact same length and order.
+
+{{texts}}",
+    "model": "gpt-4o-mini",
+    "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
+    "temperature": 0,
+  },
   "pageTranslator": {
     "detectLanguageByContent": true,
     "enableContextMenu": false,
