@@ -348,20 +348,38 @@
 	"settings_option_llmTranslator_fallbacks_down": {
 		"message": "Down"
 	},
+	"settings_option_llmTranslator_fallbacks_fetch": {
+		"message": "Fetch"
+	},
 	"settings_option_llmTranslator_fallbacks_item": {
 		"message": "Fallback"
 	},
 	"settings_option_llmTranslator_fallbacks_remove": {
 		"message": "Remove"
 	},
+	"settings_option_llmTranslator_fallbacks_thinkingLevel_inherit": {
+		"message": "Thinking level: Inherit from primary"
+	},
 	"settings_option_llmTranslator_fallbacks_up": {
 		"message": "Up"
+	},
+	"settings_option_llmTranslator_fetchEndpoint": {
+		"message": "Fetch from endpoint"
+	},
+	"settings_option_llmTranslator_fetchEndpoint_fetching": {
+		"message": "Fetching..."
+	},
+	"settings_option_llmTranslator_fetchEndpoint_noModels": {
+		"message": "Endpoint returned no models"
+	},
+	"settings_option_llmTranslator_fetchEndpoint_selectModel": {
+		"message": "Select fetched model..."
 	},
 	"settings_option_llmTranslator_model": {
 		"message": "Model"
 	},
 	"settings_option_llmTranslator_model_desc": {
-		"message": "Model identifier (e.g., gpt-4o-mini, gpt-4.1-mini, deepseek-chat, qwen2.5, translategemma)"
+		"message": "Model identifier (e.g., gpt-4o-mini, gpt-4.1-mini, deepseek-chat, qwen2.5, translategemma). Click Fetch from endpoint to load available models."
 	},
 	"settings_option_llmTranslator_systemPrompt": {
 		"message": "System prompt"
@@ -374,6 +392,33 @@
 	},
 	"settings_option_llmTranslator_temperature_desc": {
 		"message": "Sampling temperature (0 for deterministic translations, e.g., 0 to 1)"
+	},
+	"settings_option_llmTranslator_thinkingLevel": {
+		"message": "Thinking level"
+	},
+	"settings_option_llmTranslator_thinkingLevel_default": {
+		"message": "Default (endpoint / model default)"
+	},
+	"settings_option_llmTranslator_thinkingLevel_desc": {
+		"message": "Reasoning effort level sent to reasoning-capable models (reasoning_effort). Fetch from endpoint to discover model-supported thinking levels."
+	},
+	"settings_option_llmTranslator_thinkingLevel_high": {
+		"message": "High"
+	},
+	"settings_option_llmTranslator_thinkingLevel_low": {
+		"message": "Low"
+	},
+	"settings_option_llmTranslator_thinkingLevel_medium": {
+		"message": "Medium"
+	},
+	"settings_option_llmTranslator_thinkingLevel_minimal": {
+		"message": "Minimal"
+	},
+	"settings_option_llmTranslator_thinkingLevel_none": {
+		"message": "None (disabled)"
+	},
+	"settings_option_llmTranslator_thinkingLevel_xhigh": {
+		"message": "Extra high (xhigh)"
 	},
 	"settings_option_pageTranslation": {
 		"message": "The full page translation"

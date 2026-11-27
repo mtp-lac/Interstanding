@@ -306,6 +306,68 @@ const migrations: Migration[] = [
 			await browser.storage.local.set({ [storageName]: updatedConfig });
 		},
 	},
+	{
+		version: 13,
+		async migrate() {
+			const storageName = 'appConfig';
+
+			let { [storageName]: actualData } =
+				await browser.storage.local.get(storageName);
+			if (
+				actualData === null ||
+				typeof actualData !== 'object' ||
+				Array.isArray(actualData)
+			) {
+				actualData = {};
+			}
+
+			const existingLlmConfig =
+				actualData.llmTranslator !== null &&
+				typeof actualData.llmTranslator === 'object' &&
+				!Array.isArray(actualData.llmTranslator)
+					? actualData.llmTranslator
+					: {};
+
+			const sanitizedFallbacks = Array.isArray(existingLlmConfig.fallbacks)
+				? existingLlmConfig.fallbacks
+						.filter(
+							(item: unknown): item is Record<string, unknown> =>
+								item !== null &&
+								typeof item === 'object' &&
+								!Array.isArray(item),
+						)
+						.map((item: Record<string, unknown>) => ({
+							apiUrl: typeof item.apiUrl === 'string' ? item.apiUrl : '',
+							apiKey: typeof item.apiKey === 'string' ? item.apiKey : '',
+							model: typeof item.model === 'string' ? item.model : '',
+							...(typeof item.temperature === 'number' &&
+							Number.isFinite(item.temperature)
+								? { temperature: item.temperature }
+								: {}),
+							...(typeof item.thinkingLevel === 'string' &&
+							item.thinkingLevel.trim() !== ''
+								? { thinkingLevel: item.thinkingLevel.trim() }
+								: {}),
+						}))
+				: [];
+
+			const updatedConfig = {
+				...actualData,
+				llmTranslator: {
+					...defaultLLMTranslatorConfig,
+					...existingLlmConfig,
+					thinkingLevel:
+						typeof existingLlmConfig.thinkingLevel === 'string'
+							? existingLlmConfig.thinkingLevel
+							: defaultLLMTranslatorConfig.thinkingLevel,
+					fallbacks: sanitizedFallbacks,
+				},
+			};
+
+			// Write data
+			await browser.storage.local.set({ [storageName]: updatedConfig });
+		},
+	},
 ];
 
 export const ConfigStorageMigration = createMigrationTask(migrations, {

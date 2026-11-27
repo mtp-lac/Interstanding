@@ -9,7 +9,7 @@ import { ConfigStorageMigration } from '../ConfigStorage.migrations';
 import configVersion1 from './config-v1.json';
 import configVersion3 from './config-v3.json';
 
-const latestVersion = 12;
+const latestVersion = 13;
 
 describe('config migrations', () => {
 	beforeAll(clearAllMocks);
@@ -87,7 +87,44 @@ describe('config migrations', () => {
 		const { appConfig } = await browser.storage.local.get('appConfig');
 		expect(appConfig.llmTranslator).toEqual({
 			...legacyLlmConfig,
+			thinkingLevel: '',
 			fallbacks: [],
+		});
+		await clearAllMocks();
+	});
+
+	test('migrate config from v12 to v13 adds default llmTranslator.thinkingLevel and preserves fallback thinkingLevel', async () => {
+		await clearAllMocks();
+		const v12LlmConfig = {
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'gpt-4o-mini',
+			temperature: 0,
+			systemPrompt: defaultLLMTranslatorConfig.systemPrompt,
+			customPrompt: defaultLLMTranslatorConfig.customPrompt,
+			fallbacks: [
+				{
+					apiUrl: '',
+					apiKey: '',
+					model: 'o3-mini',
+					thinkingLevel: 'high',
+				},
+			],
+		};
+
+		await browser.storage.local.set({
+			appConfig: {
+				...defaultConfig,
+				llmTranslator: v12LlmConfig,
+			},
+		});
+
+		await ConfigStorageMigration.migrate(12, 13);
+
+		const { appConfig } = await browser.storage.local.get('appConfig');
+		expect(appConfig.llmTranslator).toEqual({
+			...v12LlmConfig,
+			thinkingLevel: '',
 		});
 		await clearAllMocks();
 	});

@@ -25,6 +25,7 @@ export class OpenAICompatibleLLMTranslator extends LLMTranslator {
 			apiKey: mergedConfig.apiKey,
 			model: mergedConfig.model,
 			temperature: mergedConfig.temperature,
+			thinkingLevel: mergedConfig.thinkingLevel,
 			fallbacks: mergedConfig.fallbacks,
 		});
 

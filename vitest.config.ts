@@ -1,14 +1,15 @@
-import { readFileSync } from 'fs';
+import { readFileSync, realpathSync } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { defineConfig } from 'vitest/config';
 
 const testTargets = (process.env.TEST_TARGETS ?? '').split(',');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 export default defineConfig({
+	server: {
+		fs: {
+			allow: [path.resolve('.'), realpathSync('.')],
+		},
+	},
 	plugins: [
 		{
 			name: 'vite-plugin-string-import',
@@ -40,10 +41,10 @@ export default defineConfig({
 		globals: true,
 		environment: 'jsdom',
 		setupFiles: [
-			path.join(__dirname, 'test/setupFiles/jest.js'),
+			'./test/setupFiles/jest.js',
 			'jest-localstorage-mock',
 			'fake-indexeddb/auto',
-			path.join(__dirname, 'test/setupFiles/webextension.js'),
+			'./test/setupFiles/webextension.js',
 		],
 	},
 });

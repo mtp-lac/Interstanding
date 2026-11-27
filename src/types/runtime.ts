@@ -44,6 +44,7 @@ export const LLMFallbackEndpoint = type.intersection([
 	}),
 	type.partial({
 		temperature: type.number,
+		thinkingLevel: type.string,
 	}),
 ]);
 
@@ -119,6 +120,7 @@ export const AppConfig = type.type({
 		apiKey: type.string,
 		model: type.string,
 		temperature: type.number,
+		thinkingLevel: type.string,
 		systemPrompt: type.string,
 		customPrompt: type.string,
 		fallbacks: type.array(LLMFallbackEndpoint),

@@ -3,9 +3,13 @@ import {
 	cleanLLMJsonResponse,
 	DEFAULT_LLM_SYSTEM_PROMPT,
 	DEFAULT_LLM_USER_PROMPT,
+	DEFAULT_THINKING_LEVELS,
+	extractThinkingLevelsFromModelRecord,
+	fetchEndpointMetadata,
 	OpenAICompatibleLLMTranslator,
 	resolveChatCompletionsUrl,
 	resolveEndpointCandidates,
+	resolveModelsUrl,
 	validateLLMJsonOutput,
 } from '../index';
 
@@ -32,6 +36,117 @@ describe('resolveChatCompletionsUrl', () => {
 		expect(resolveChatCompletionsUrl('   ')).toBe(
 			'https://api.openai.com/v1/chat/completions',
 		);
+	});
+});
+
+describe('resolveModelsUrl', () => {
+	test('appends /models to base URL and strips /chat/completions if present', () => {
+		expect(resolveModelsUrl('https://api.openai.com/v1')).toBe(
+			'https://api.openai.com/v1/models',
+		);
+		expect(resolveModelsUrl('https://openrouter.ai/api/v1/chat/completions/')).toBe(
+			'https://openrouter.ai/api/v1/models',
+		);
+		expect(resolveModelsUrl('http://localhost:11434/v1/models/')).toBe(
+			'http://localhost:11434/v1/models',
+		);
+		expect(resolveModelsUrl('')).toBe('https://api.openai.com/v1/models');
+	});
+});
+
+describe('extractThinkingLevelsFromModelRecord and fetchEndpointMetadata', () => {
+	test('extracts explicit thinking_levels and supported_reasoning_efforts arrays', () => {
+		expect(
+			extractThinkingLevelsFromModelRecord({
+				id: 'o3-mini',
+				supported_reasoning_efforts: ['low', 'Medium', 'HIGH', 'low'],
+			}),
+		).toEqual(['low', 'medium', 'high']);
+
+		expect(
+			extractThinkingLevelsFromModelRecord({
+				id: 'qwen3',
+				capabilities: {
+					thinking_levels: ['none', 'low', 'high'],
+				},
+			}),
+		).toEqual(['none', 'low', 'high']);
+	});
+
+	test('maps reasoning parameter/capability flags to default thinking levels', () => {
+		expect(
+			extractThinkingLevelsFromModelRecord({
+				id: 'deepseek/deepseek-r1',
+				supported_parameters: ['temperature', 'reasoning'],
+			}),
+		).toEqual([...DEFAULT_THINKING_LEVELS]);
+	});
+
+	test('fetches models and thinking levels from OpenAI-style /models response', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				data: [
+					{
+						id: 'o3-mini',
+						supported_reasoning_efforts: ['low', 'medium', 'high'],
+					},
+					{
+						id: 'gpt-4o-mini',
+					},
+				],
+			}),
+		});
+
+		const result = await fetchEndpointMetadata({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'o3-mini',
+			fetchImpl: fetchMock as unknown as typeof fetch,
+		});
+
+		expect(fetchMock).toHaveBeenCalledWith('https://api.openai.com/v1/models', {
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				Authorization: 'Bearer sk-test',
+			},
+		});
+		expect(result.models).toEqual([
+			{ id: 'o3-mini', thinkingLevels: ['low', 'medium', 'high'] },
+			{ id: 'gpt-4o-mini', thinkingLevels: [] },
+		]);
+		expect(result.thinkingLevels).toEqual(['low', 'medium', 'high']);
+	});
+
+	test('fetches models from Ollama-style { models } response and probes selected model when needed', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					models: [{ name: 'qwen3:8b' }, { name: 'llama3.2' }],
+				}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					name: 'qwen3:8b',
+					thinking_levels: ['none', 'low', 'medium', 'high'],
+				}),
+			});
+
+		const result = await fetchEndpointMetadata({
+			apiUrl: 'http://localhost:11434/v1',
+			model: 'qwen3:8b',
+			fetchImpl: fetchMock as unknown as typeof fetch,
+		});
+
+		expect(result.models).toEqual([
+			{ id: 'qwen3:8b', thinkingLevels: ['none', 'low', 'medium', 'high'] },
+			{ id: 'llama3.2', thinkingLevels: [] },
+		]);
+		expect(result.thinkingLevels).toEqual(['none', 'low', 'medium', 'high']);
 	});
 });
 
@@ -102,6 +217,7 @@ describe('resolveEndpointCandidates', () => {
 				apiKey: 'sk-primary',
 				model: 'gpt-4o-mini',
 				temperature: 0.1,
+				thinkingLevel: '',
 			},
 			{
 				label: 'fallback #2',
@@ -109,6 +225,7 @@ describe('resolveEndpointCandidates', () => {
 				apiKey: 'sk-primary',
 				model: 'gpt-4.1-mini',
 				temperature: 0.1,
+				thinkingLevel: '',
 			},
 			{
 				label: 'fallback #3',
@@ -116,7 +233,35 @@ describe('resolveEndpointCandidates', () => {
 				apiKey: '',
 				model: 'qwen2.5',
 				temperature: 0.1,
+				thinkingLevel: '',
 			},
+		]);
+	});
+
+	test('inherits primary thinkingLevel unless overridden or reset to default', () => {
+		const candidates = resolveEndpointCandidates({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'o3-mini',
+			temperature: 0,
+			thinkingLevel: 'high',
+			fallbacks: [
+				{ apiUrl: '', apiKey: '', model: 'o4-mini' },
+				{ apiUrl: '', apiKey: '', model: 'o4-mini', thinkingLevel: 'low' },
+				{
+					apiUrl: '',
+					apiKey: '',
+					model: 'gpt-4o-mini',
+					thinkingLevel: 'default',
+				},
+			],
+		});
+
+		expect(candidates.map((c) => [c.model, c.thinkingLevel])).toEqual([
+			['o3-mini', 'high'],
+			['o4-mini', 'high'],
+			['o4-mini', 'low'],
+			['gpt-4o-mini', ''],
 		]);
 	});
 });
@@ -408,5 +553,52 @@ describe('OpenAICompatibleLLMTranslator', () => {
 		await expect(translator.translate('Hello', 'en', 'es')).rejects.toThrow(
 			/All 2 LLM endpoints failed/,
 		);
+	});
+
+	test('sends reasoning_effort when thinkingLevel is configured and omits when default', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 500,
+				statusText: 'Internal Server Error',
+				json: async () => ({ error: { message: 'Temporary error' } }),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'o3-mini',
+			thinkingLevel: 'medium',
+			fallbacks: [
+				{
+					apiUrl: '',
+					apiKey: '',
+					model: 'gpt-4o-mini',
+					thinkingLevel: 'default',
+				},
+			],
+		});
+
+		const result = await translator.translate('Hello', 'en', 'es');
+		expect(result).toBe('Hola');
+
+		const firstBody = JSON.parse(
+			(fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+		);
+		expect(firstBody.reasoning_effort).toBe('medium');
+
+		const secondBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(secondBody.reasoning_effort).toBeUndefined();
 	});
 });

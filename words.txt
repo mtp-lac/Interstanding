@@ -15,3 +15,5 @@ Rybbit
 indexeddb
 webextension
 ollama
+interstanding
+xhigh

@@ -6,7 +6,8 @@ Interstanding includes a built-in **LLM (OpenAI-Compatible)** translator that wo
 
 - **API base URL**: Base URL for your primary OpenAI-compatible API (e.g., `https://api.openai.com/v1`, `https://openrouter.ai/api/v1`, `http://localhost:11434/v1`). `/chat/completions` is appended automatically if omitted.
 - **API key**: Bearer token for authentication. Leave empty for local servers without authentication (such as Ollama).
-- **Model**: Model identifier (e.g., `gpt-4o-mini`, `gpt-4.1-mini`, `deepseek-chat`, `qwen2.5`).
+- **Model**: Model identifier (e.g., `gpt-4o-mini`, `gpt-4.1-mini`, `deepseek-chat`, `qwen2.5`). Use **Fetch from endpoint** to query `{apiUrl}/models` and populate available models and endpoint-supported thinking levels while customizing settings.
+- **Thinking level**: Reasoning effort level (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or an endpoint-reported level) sent as `reasoning_effort` to reasoning-capable models. Leave on **Default** to omit `reasoning_effort` and use the endpoint/model default.
 - **Temperature**: Sampling temperature (`0` recommended for deterministic translations).
 - **System prompt**: System instructions defining translator persona, tone, or glossary.
 - **Custom translation prompt**: Prompt template supporting `{{from}}`, `{{to}}`, `{{fromCode}}`, `{{toCode}}`, and `{{texts}}`.
@@ -27,10 +28,11 @@ If every configured endpoint fails, an aggregated error listing each attempted e
 
 ### Field Inheritance Rules
 
-Each fallback entry supports `apiUrl`, `apiKey`, `model`, and an optional `temperature`:
+Each fallback entry supports `apiUrl`, `apiKey`, `model`, an optional `thinkingLevel`, and an optional `temperature`:
 
 - **Model-only fallback on the same endpoint**: Leave **API base URL** and **API key** blank and set only **Model** (e.g., primary `gpt-4o-mini` → fallback `gpt-4.1-mini`). Both the primary URL and API key are inherited automatically.
 - **Cross-provider fallback**: Specify a different **API base URL**, **API key**, and **Model** (e.g., OpenAI primary → OpenRouter or Groq fallback).
 - **Local unauthenticated fallback**: Specify a local **API base URL** (e.g., `http://localhost:11434/v1`) and leave **API key** blank. Because a custom URL is provided, the primary provider's API key is **not** sent to the local endpoint.
+- **Thinking level**: Leave set to **Inherit from primary** to reuse the primary thinking level, choose **Default** to omit `reasoning_effort` for that fallback, or select an explicit level (or fetch levels from the fallback endpoint).
 - **Temperature**: Leave blank to inherit the primary temperature, or set a numeric override per fallback.
-- **Deduplication & blank rows**: Completely blank fallback rows are ignored, and exact duplicate `(apiUrl, apiKey, model, temperature)` entries are automatically skipped.
+- **Deduplication & blank rows**: Completely blank fallback rows are ignored, and exact duplicate `(apiUrl, apiKey, model, temperature, thinkingLevel)` entries are automatically skipped.

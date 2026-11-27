@@ -131,8 +131,57 @@ export const generateTree = ({
 							),
 							path: 'llmTranslator.model',
 							optionContent: {
-								type: 'InputText',
+								type: 'LLMModel',
 								placeholder: 'gpt-4o-mini',
+								labels: {
+									fetchButton: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint',
+									),
+									fetchingButton: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_fetching',
+									),
+									selectModelPlaceholder: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_selectModel',
+									),
+									noModelsFound: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_noModels',
+									),
+								},
+							},
+						},
+						{
+							title: getMessage(
+								'settings_option_llmTranslator_thinkingLevel',
+							),
+							description: getMessage(
+								'settings_option_llmTranslator_thinkingLevel_desc',
+							),
+							path: 'llmTranslator.thinkingLevel',
+							optionContent: {
+								type: 'LLMThinkingLevel',
+								labels: {
+									defaultOption: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_default',
+									),
+									levelNone: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_none',
+									),
+									levelMinimal: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_minimal',
+									),
+									levelLow: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_low',
+									),
+									levelMedium: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_medium',
+									),
+									levelHigh: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_high',
+									),
+									levelXHigh: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_xhigh',
+									),
+								},
 							},
 						},
 						{
@@ -194,6 +243,42 @@ export const generateTree = ({
 									),
 									itemTitle: getMessage(
 										'settings_option_llmTranslator_fallbacks_item',
+									),
+									fetchButton: getMessage(
+										'settings_option_llmTranslator_fallbacks_fetch',
+									),
+									fetchingButton: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_fetching',
+									),
+									selectModelPlaceholder: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_selectModel',
+									),
+									noModelsFound: getMessage(
+										'settings_option_llmTranslator_fetchEndpoint_noModels',
+									),
+									thinkingLevelInherit: getMessage(
+										'settings_option_llmTranslator_fallbacks_thinkingLevel_inherit',
+									),
+									thinkingLevelDefault: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_default',
+									),
+									levelNone: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_none',
+									),
+									levelMinimal: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_minimal',
+									),
+									levelLow: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_low',
+									),
+									levelMedium: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_medium',
+									),
+									levelHigh: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_high',
+									),
+									levelXHigh: getMessage(
+										'settings_option_llmTranslator_thinkingLevel_xhigh',
 									),
 								},
 							},

@@ -20,6 +20,7 @@ export const defaultLLMTranslatorConfig: LLMTranslatorConfig = {
 	apiKey: '',
 	model: 'gpt-4o-mini',
 	temperature: 0,
+	thinkingLevel: '',
 	systemPrompt: DEFAULT_LLM_SYSTEM_PROMPT,
 	customPrompt: DEFAULT_LLM_USER_PROMPT,
 	fallbacks: [],

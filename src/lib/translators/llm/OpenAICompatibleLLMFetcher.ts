@@ -7,10 +7,20 @@ import type {
 
 import type { LLMPromptMessages } from './promptBuilder';
 
+export const DEFAULT_THINKING_LEVELS = [
+	'none',
+	'minimal',
+	'low',
+	'medium',
+	'high',
+	'xhigh',
+] as const;
+
 export type OpenAICompatibleFetcherConfig = Pick<
 	LLMTranslatorConfig,
 	'apiUrl' | 'apiKey' | 'model' | 'temperature'
 > & {
+	thinkingLevel?: string;
 	fallbacks?: LLMFallbackEndpointConfig[];
 };
 
@@ -20,16 +30,303 @@ export type ResolvedLLMEndpoint = {
 	apiKey: string;
 	model: string;
 	temperature: number;
+	thinkingLevel: string;
+};
+
+export type EndpointModelInfo = {
+	id: string;
+	thinkingLevels: string[];
+};
+
+export type EndpointMetadataResult = {
+	models: EndpointModelInfo[];
+	thinkingLevels: string[];
 };
 
 export type DecodedPromptEnvelope = LLMPromptMessages & {
 	expectedLength?: number;
 };
 
+export const normalizeThinkingLevel = (raw: unknown): string => {
+	if (typeof raw !== 'string') {
+		return '';
+	}
+	const trimmed = raw.trim().toLowerCase();
+	if (trimmed === '' || trimmed === 'default') {
+		return '';
+	}
+	return trimmed;
+};
+
 export const resolveChatCompletionsUrl = (apiUrl: string): string => {
 	const trimmed = apiUrl.trim().replace(/\/+$/, '');
 	const base = trimmed || 'https://api.openai.com/v1';
 	return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+};
+
+export const resolveModelsUrl = (apiUrl: string): string => {
+	const trimmed = apiUrl.trim().replace(/\/+$/, '');
+	const base = trimmed || 'https://api.openai.com/v1';
+	if (base.endsWith('/chat/completions')) {
+		return `${base.slice(0, -'/chat/completions'.length)}/models`;
+	}
+	return base.endsWith('/models') ? base : `${base}/models`;
+};
+
+const parseThinkingLevelArray = (candidate: unknown): string[] => {
+	if (!Array.isArray(candidate)) {
+		return [];
+	}
+
+	const levels: string[] = [];
+	const seen = new Set<string>();
+
+	for (const entry of candidate) {
+		let rawLevel: unknown;
+		if (typeof entry === 'string') {
+			rawLevel = entry;
+		} else if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
+			const record = entry as Record<string, unknown>;
+			rawLevel =
+				record['id'] ?? record['effort'] ?? record['level'] ?? record['name'];
+		}
+
+		if (typeof rawLevel === 'string') {
+			const normalized = rawLevel.trim().toLowerCase();
+			if (normalized !== '' && !seen.has(normalized)) {
+				seen.add(normalized);
+				levels.push(normalized);
+			}
+		}
+	}
+
+	return levels;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === 'object' && !Array.isArray(value);
+
+export const extractThinkingLevelsFromModelRecord = (
+	record: Record<string, unknown>,
+): string[] => {
+	const nestedReasoning = isPlainObject(record['reasoning'])
+		? record['reasoning']
+		: undefined;
+	const nestedCapabilities = isPlainObject(record['capabilities'])
+		? record['capabilities']
+		: undefined;
+	const nestedMetadata = isPlainObject(record['metadata'])
+		? record['metadata']
+		: undefined;
+
+	const explicitCandidates: unknown[] = [
+		record['thinking_levels'],
+		record['thinkingLevels'],
+		record['reasoning_efforts'],
+		record['reasoningEfforts'],
+		record['supported_reasoning_efforts'],
+		record['supportedReasoningEfforts'],
+		nestedReasoning?.['supported_efforts'],
+		nestedReasoning?.['supportedEfforts'],
+		nestedReasoning?.['efforts'],
+		nestedReasoning?.['levels'],
+		nestedCapabilities?.['thinking_levels'],
+		nestedCapabilities?.['thinkingLevels'],
+		nestedCapabilities?.['reasoning_efforts'],
+		nestedCapabilities?.['reasoningEfforts'],
+		nestedMetadata?.['thinking_levels'],
+		nestedMetadata?.['thinkingLevels'],
+		nestedMetadata?.['reasoning_efforts'],
+		nestedMetadata?.['reasoningEfforts'],
+	];
+
+	const combined: string[] = [];
+	const seen = new Set<string>();
+	for (const candidate of explicitCandidates) {
+		for (const level of parseThinkingLevelArray(candidate)) {
+			if (!seen.has(level)) {
+				seen.add(level);
+				combined.push(level);
+			}
+		}
+	}
+
+	if (combined.length > 0) {
+		return combined;
+	}
+
+	const supportedParamsRaw =
+		record['supported_parameters'] ?? record['supportedParameters'];
+	if (Array.isArray(supportedParamsRaw)) {
+		const hasReasoningParam = supportedParamsRaw.some(
+			(param) =>
+				typeof param === 'string' &&
+				['reasoning', 'reasoning_effort', 'thinking'].includes(
+					param.trim().toLowerCase(),
+				),
+		);
+		if (hasReasoningParam) {
+			return [...DEFAULT_THINKING_LEVELS];
+		}
+	}
+
+	const supportsReasoningFlag =
+		record['reasoning'] === true ||
+		record['thinking'] === true ||
+		nestedCapabilities?.['reasoning'] === true ||
+		nestedCapabilities?.['thinking'] === true ||
+		nestedCapabilities?.['reasoning_effort'] === true;
+
+	if (supportsReasoningFlag) {
+		return [...DEFAULT_THINKING_LEVELS];
+	}
+
+	return [];
+};
+
+const parseResponseErrorDetail = async (response: Response): Promise<string> => {
+	let errorDetail = response.statusText;
+	try {
+		const errorBody = (await response.json()) as {
+			error?: { message?: string };
+			message?: string;
+		};
+		const parsedMessage = errorBody?.error?.message ?? errorBody?.message;
+		if (typeof parsedMessage === 'string' && parsedMessage.trim() !== '') {
+			errorDetail = parsedMessage.trim();
+		}
+	} catch {
+		// Ignore JSON parse error on non-JSON error responses
+	}
+	return errorDetail;
+};
+
+export const fetchEndpointMetadata = async ({
+	apiUrl,
+	apiKey = '',
+	model = '',
+	fetchImpl = globalThis.fetch,
+}: {
+	apiUrl: string;
+	apiKey?: string;
+	model?: string;
+	fetchImpl?: typeof fetch;
+}): Promise<EndpointMetadataResult> => {
+	const modelsUrl = resolveModelsUrl(apiUrl);
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+	};
+	const trimmedKey = apiKey.trim();
+	if (trimmedKey !== '') {
+		headers['Authorization'] = `Bearer ${trimmedKey}`;
+	}
+
+	const response = await fetchImpl(modelsUrl, {
+		method: 'GET',
+		headers,
+	});
+
+	if (!response.ok) {
+		const detail = await parseResponseErrorDetail(response);
+		throw new Error(`Failed to fetch models (${response.status}): ${detail}`);
+	}
+
+	const payload = (await response.json()) as unknown;
+	let rawEntries: unknown[] = [];
+	if (Array.isArray(payload)) {
+		rawEntries = payload;
+	} else if (isPlainObject(payload)) {
+		if (Array.isArray(payload['data'])) {
+			rawEntries = payload['data'];
+		} else if (Array.isArray(payload['models'])) {
+			rawEntries = payload['models'];
+		}
+	}
+
+	const modelMap = new Map<string, string[]>();
+	const mergeLevels = (existing: string[], incoming: string[]): string[] => {
+		const merged = [...existing];
+		const seen = new Set(existing);
+		for (const level of incoming) {
+			if (!seen.has(level)) {
+				seen.add(level);
+				merged.push(level);
+			}
+		}
+		return merged;
+	};
+
+	for (const entry of rawEntries) {
+		if (typeof entry === 'string') {
+			const id = entry.trim();
+			if (id !== '' && !modelMap.has(id)) {
+				modelMap.set(id, []);
+			}
+			continue;
+		}
+
+		if (!isPlainObject(entry)) {
+			continue;
+		}
+
+		const rawId = entry['id'] ?? entry['model'] ?? entry['name'];
+		if (typeof rawId !== 'string' || rawId.trim() === '') {
+			continue;
+		}
+
+		const id = rawId.trim();
+		const levels = extractThinkingLevelsFromModelRecord(entry);
+		const existing = modelMap.get(id) ?? [];
+		modelMap.set(id, mergeLevels(existing, levels));
+	}
+
+	const trimmedModel = model.trim();
+	if (trimmedModel !== '' && (modelMap.get(trimmedModel)?.length ?? 0) === 0) {
+		try {
+			const detailResponse = await fetchImpl(
+				`${modelsUrl}/${encodeURIComponent(trimmedModel)}`,
+				{
+					method: 'GET',
+					headers,
+				},
+			);
+			if (detailResponse.ok) {
+				const detailPayload = (await detailResponse.json()) as unknown;
+				if (isPlainObject(detailPayload)) {
+					const detailLevels =
+						extractThinkingLevelsFromModelRecord(detailPayload);
+					if (detailLevels.length > 0) {
+						const existing = modelMap.get(trimmedModel) ?? [];
+						modelMap.set(trimmedModel, mergeLevels(existing, detailLevels));
+					}
+				}
+			}
+		} catch {
+			// Best-effort single-model metadata probe; ignore unsupported endpoints
+		}
+	}
+
+	const models: EndpointModelInfo[] = Array.from(modelMap.entries()).map(
+		([id, thinkingLevels]) => ({
+			id,
+			thinkingLevels,
+		}),
+	);
+
+	const selectedLevels = trimmedModel !== '' ? modelMap.get(trimmedModel) : undefined;
+	let thinkingLevels: string[] = [];
+	if (selectedLevels && selectedLevels.length > 0) {
+		thinkingLevels = [...selectedLevels];
+	} else {
+		for (const info of models) {
+			thinkingLevels = mergeLevels(thinkingLevels, info.thinkingLevels);
+		}
+	}
+
+	return {
+		models,
+		thinkingLevels,
+	};
 };
 
 export const cleanLLMJsonResponse = (raw: string): string => {
@@ -162,11 +459,12 @@ export const resolveEndpointCandidates = (
 		apiKey: config.apiKey.trim(),
 		model: config.model.trim() || 'gpt-4o-mini',
 		temperature: Number.isFinite(config.temperature) ? config.temperature : 0,
+		thinkingLevel: normalizeThinkingLevel(config.thinkingLevel),
 	};
 
 	const candidates: ResolvedLLMEndpoint[] = [primary];
 	const seen = new Set<string>([
-		`${primary.apiUrl}\0${primary.apiKey}\0${primary.model}\0${primary.temperature}`,
+		`${primary.apiUrl}\0${primary.apiKey}\0${primary.model}\0${primary.temperature}\0${primary.thinkingLevel}`,
 	]);
 
 	const fallbacks = Array.isArray(config.fallbacks) ? config.fallbacks : [];
@@ -196,7 +494,18 @@ export const resolveEndpointCandidates = (
 				? fallback.temperature
 				: primary.temperature;
 
-		const dedupeKey = `${resolvedUrl}\0${resolvedKey}\0${resolvedModel}\0${resolvedTemp}`;
+		const rawThinking =
+			typeof fallback.thinkingLevel === 'string'
+				? fallback.thinkingLevel.trim().toLowerCase()
+				: '';
+		const resolvedThinkingLevel =
+			rawThinking === ''
+				? primary.thinkingLevel
+				: rawThinking === 'default'
+					? ''
+					: rawThinking;
+
+		const dedupeKey = `${resolvedUrl}\0${resolvedKey}\0${resolvedModel}\0${resolvedTemp}\0${resolvedThinkingLevel}`;
 		if (seen.has(dedupeKey)) {
 			return;
 		}
@@ -208,6 +517,7 @@ export const resolveEndpointCandidates = (
 			apiKey: resolvedKey,
 			model: resolvedModel,
 			temperature: resolvedTemp,
+			thinkingLevel: resolvedThinkingLevel,
 		});
 	});
 
@@ -240,30 +550,23 @@ export class OpenAICompatibleLLMFetcher implements LLMFetcher {
 			headers['Authorization'] = `Bearer ${endpoint.apiKey}`;
 		}
 
+		const requestBody: Record<string, unknown> = {
+			model: endpoint.model,
+			messages,
+			temperature: endpoint.temperature,
+		};
+		if (endpoint.thinkingLevel !== '') {
+			requestBody['reasoning_effort'] = endpoint.thinkingLevel;
+		}
+
 		const response = await fetch(endpoint.apiUrl, {
 			method: 'POST',
 			headers,
-			body: JSON.stringify({
-				model: endpoint.model,
-				messages,
-				temperature: endpoint.temperature,
-			}),
+			body: JSON.stringify(requestBody),
 		});
 
 		if (!response.ok) {
-			let errorDetail = response.statusText;
-			try {
-				const errorBody = (await response.json()) as {
-					error?: { message?: string };
-					message?: string;
-				};
-				const parsedMessage = errorBody?.error?.message ?? errorBody?.message;
-				if (typeof parsedMessage === 'string' && parsedMessage.trim() !== '') {
-					errorDetail = parsedMessage.trim();
-				}
-			} catch {
-				// Ignore JSON parse error on non-JSON error responses
-			}
+			const errorDetail = await parseResponseErrorDetail(response);
 			throw new Error(
 				`LLM API request failed with status ${response.status}: ${errorDetail}`,
 			);

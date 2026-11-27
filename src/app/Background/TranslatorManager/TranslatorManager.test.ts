@@ -176,6 +176,7 @@ test('TranslatorManager passes llmTranslator config to translator constructor an
 		apiKey: 'sk-1',
 		model: 'model-a',
 		temperature: 0,
+		thinkingLevel: '',
 		systemPrompt: 'sys',
 		customPrompt: 'user {{texts}}',
 		fallbacks: [],

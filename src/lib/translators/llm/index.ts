@@ -7,10 +7,17 @@ export {
 export {
 	cleanLLMJsonResponse,
 	decodePromptEnvelope,
+	DEFAULT_THINKING_LEVELS,
 	encodePromptEnvelope,
+	type EndpointMetadataResult,
+	type EndpointModelInfo,
+	extractThinkingLevelsFromModelRecord,
+	fetchEndpointMetadata,
+	normalizeThinkingLevel,
 	OpenAICompatibleLLMFetcher,
 	resolveChatCompletionsUrl,
 	resolveEndpointCandidates,
+	resolveModelsUrl,
 	validateLLMJsonOutput,
 } from './OpenAICompatibleLLMFetcher';
 export { OpenAICompatibleLLMTranslator } from './OpenAICompatibleLLMTranslator';
