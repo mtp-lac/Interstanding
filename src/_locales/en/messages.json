@@ -336,6 +336,27 @@
 	"settings_option_llmTranslator_customPrompt_desc": {
 		"message": "Prompt template sent for translation. Placeholders: {{from}}, {{to}}, {{fromCode}}, {{toCode}}, {{texts}} (JSON array of texts; appended automatically if omitted)"
 	},
+	"settings_option_llmTranslator_fallbacks": {
+		"message": "Fallback endpoints & models"
+	},
+	"settings_option_llmTranslator_fallbacks_add": {
+		"message": "Add fallback endpoint"
+	},
+	"settings_option_llmTranslator_fallbacks_desc": {
+		"message": "Ordered backup LLM endpoints and models tried automatically when the primary endpoint fails or returns invalid output. Leave API base URL blank to reuse the primary endpoint with a different model."
+	},
+	"settings_option_llmTranslator_fallbacks_down": {
+		"message": "Down"
+	},
+	"settings_option_llmTranslator_fallbacks_item": {
+		"message": "Fallback"
+	},
+	"settings_option_llmTranslator_fallbacks_remove": {
+		"message": "Remove"
+	},
+	"settings_option_llmTranslator_fallbacks_up": {
+		"message": "Up"
+	},
 	"settings_option_llmTranslator_model": {
 		"message": "Model"
 	},

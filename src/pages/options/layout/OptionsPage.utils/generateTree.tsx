@@ -171,6 +171,33 @@ export const generateTree = ({
 								type: 'InputMultiline',
 							},
 						},
+						{
+							title: getMessage('settings_option_llmTranslator_fallbacks'),
+							description: getMessage(
+								'settings_option_llmTranslator_fallbacks_desc',
+							),
+							path: 'llmTranslator.fallbacks',
+							optionContent: {
+								type: 'LLMFallbacks',
+								labels: {
+									addButton: getMessage(
+										'settings_option_llmTranslator_fallbacks_add',
+									),
+									removeButton: getMessage(
+										'settings_option_llmTranslator_fallbacks_remove',
+									),
+									moveUpButton: getMessage(
+										'settings_option_llmTranslator_fallbacks_up',
+									),
+									moveDownButton: getMessage(
+										'settings_option_llmTranslator_fallbacks_down',
+									),
+									itemTitle: getMessage(
+										'settings_option_llmTranslator_fallbacks_item',
+									),
+								},
+							},
+						},
 					],
 				},
 				{

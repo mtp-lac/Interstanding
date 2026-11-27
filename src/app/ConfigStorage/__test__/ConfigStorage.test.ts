@@ -9,7 +9,7 @@ import { ConfigStorageMigration } from '../ConfigStorage.migrations';
 import configVersion1 from './config-v1.json';
 import configVersion3 from './config-v3.json';
 
-const latestVersion = 11;
+const latestVersion = 12;
 
 describe('config migrations', () => {
 	beforeAll(clearAllMocks);
@@ -60,6 +60,34 @@ describe('config migrations', () => {
 		expect(appConfig.llmTranslator).toEqual({
 			...defaultLLMTranslatorConfig,
 			model: 'custom-model',
+		});
+		await clearAllMocks();
+	});
+
+	test('migrate config from v11 to v12 adds empty llmTranslator.fallbacks array', async () => {
+		await clearAllMocks();
+		const legacyLlmConfig = {
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'gpt-4o-mini',
+			temperature: 0,
+			systemPrompt: defaultLLMTranslatorConfig.systemPrompt,
+			customPrompt: defaultLLMTranslatorConfig.customPrompt,
+		};
+
+		await browser.storage.local.set({
+			appConfig: {
+				...defaultConfig,
+				llmTranslator: legacyLlmConfig,
+			},
+		});
+
+		await ConfigStorageMigration.migrate(11, 12);
+
+		const { appConfig } = await browser.storage.local.get('appConfig');
+		expect(appConfig.llmTranslator).toEqual({
+			...legacyLlmConfig,
+			fallbacks: [],
 		});
 		await clearAllMocks();
 	});

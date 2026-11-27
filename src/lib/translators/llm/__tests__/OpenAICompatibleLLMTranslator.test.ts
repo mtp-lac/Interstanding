@@ -5,6 +5,8 @@ import {
 	DEFAULT_LLM_USER_PROMPT,
 	OpenAICompatibleLLMTranslator,
 	resolveChatCompletionsUrl,
+	resolveEndpointCandidates,
+	validateLLMJsonOutput,
 } from '../index';
 
 describe('resolveChatCompletionsUrl', () => {
@@ -48,6 +50,74 @@ describe('cleanLLMJsonResponse', () => {
 		const raw =
 			'<think>Thinking about translation...</think>\nHere is the translation:\n```json\n["Hallo"]\n```\nHope that helps!';
 		expect(cleanLLMJsonResponse(raw)).toBe('["Hallo"]');
+	});
+});
+
+describe('validateLLMJsonOutput', () => {
+	test('accepts valid string array matching expected length', () => {
+		expect(validateLLMJsonOutput('["Hola", "Mundo"]', 2)).toBeNull();
+	});
+
+	test('rejects invalid JSON', () => {
+		expect(validateLLMJsonOutput('not valid json', 1)).toContain('not valid JSON');
+	});
+
+	test('rejects non-array JSON and non-string items', () => {
+		expect(validateLLMJsonOutput('{"text":"Hola"}', 1)).toContain('not an array');
+		expect(validateLLMJsonOutput('["Hola", 123]', 2)).toContain(
+			'non-string elements',
+		);
+	});
+
+	test('rejects mismatched item count', () => {
+		expect(validateLLMJsonOutput('["Hola"]', 2)).toContain(
+			'Expected 2 translated item(s), received 1',
+		);
+	});
+});
+
+describe('resolveEndpointCandidates', () => {
+	test('inherits primary apiUrl and apiKey for model-only fallback, but not apiKey for custom apiUrl', () => {
+		const candidates = resolveEndpointCandidates({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'gpt-4o-mini',
+			temperature: 0.1,
+			fallbacks: [
+				{ apiUrl: '  ', apiKey: '', model: '' },
+				{ apiUrl: '', apiKey: '', model: 'gpt-4.1-mini' },
+				{ apiUrl: 'http://localhost:11434/v1', apiKey: '', model: 'qwen2.5' },
+				{
+					apiUrl: 'https://api.openai.com/v1',
+					apiKey: 'sk-primary',
+					model: 'gpt-4o-mini',
+				},
+			],
+		});
+
+		expect(candidates).toEqual([
+			{
+				label: 'primary',
+				apiUrl: 'https://api.openai.com/v1/chat/completions',
+				apiKey: 'sk-primary',
+				model: 'gpt-4o-mini',
+				temperature: 0.1,
+			},
+			{
+				label: 'fallback #2',
+				apiUrl: 'https://api.openai.com/v1/chat/completions',
+				apiKey: 'sk-primary',
+				model: 'gpt-4.1-mini',
+				temperature: 0.1,
+			},
+			{
+				label: 'fallback #3',
+				apiUrl: 'http://localhost:11434/v1/chat/completions',
+				apiKey: '',
+				model: 'qwen2.5',
+				temperature: 0.1,
+			},
+		]);
 	});
 });
 
@@ -202,5 +272,141 @@ describe('OpenAICompatibleLLMTranslator', () => {
 		const translated = await translator.translate('Hello', 'en', 'fr');
 		expect(translated).toBe('Bonjour');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	test('falls back to secondary endpoint when primary returns HTTP error', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 429,
+				statusText: 'Too Many Requests',
+				json: async () => ({ error: { message: 'Rate limit exceeded' } }),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Xin chào"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'gpt-4o-mini',
+			fallbacks: [
+				{
+					apiUrl: 'https://openrouter.ai/api/v1',
+					apiKey: 'sk-or-backup',
+					model: 'google/gemini-2.5-flash',
+				},
+			],
+		});
+
+		const translated = await translator.translate('Hello', 'en', 'vi');
+		expect(translated).toBe('Xin chào');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(warnSpy).toHaveBeenCalledTimes(1);
+
+		const [secondUrl, secondInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+		expect(secondUrl).toBe('https://openrouter.ai/api/v1/chat/completions');
+		expect(secondInit.headers).toEqual({
+			'Content-Type': 'application/json',
+			Authorization: 'Bearer sk-or-backup',
+		});
+		expect(JSON.parse(secondInit.body as string).model).toBe(
+			'google/gemini-2.5-flash',
+		);
+	});
+
+	test('falls back when primary model returns malformed JSON or wrong array length', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Only one"]' } }],
+				}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: 'Sorry, I cannot translate.' } }],
+				}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola", "Mundo"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'gpt-4o-mini',
+			fallbacks: [
+				{ apiUrl: '', apiKey: '', model: 'gpt-4.1-mini' },
+				{ apiUrl: 'http://localhost:11434/v1', apiKey: '', model: 'qwen2.5' },
+			],
+		});
+
+		const translated = await translator.translateBatch(
+			['Hello', 'World'],
+			'en',
+			'es',
+		);
+		expect(translated).toEqual(['Hola', 'Mundo']);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+
+		const [url1, init1] = fetchMock.mock.calls[1] as [string, RequestInit];
+		expect(url1).toBe('https://api.openai.com/v1/chat/completions');
+		expect(init1.headers).toEqual({
+			'Content-Type': 'application/json',
+			Authorization: 'Bearer sk-primary',
+		});
+		expect(JSON.parse(init1.body as string).model).toBe('gpt-4.1-mini');
+
+		const [url2, init2] = fetchMock.mock.calls[2] as [string, RequestInit];
+		expect(url2).toBe('http://localhost:11434/v1/chat/completions');
+		expect(init2.headers).toEqual({
+			'Content-Type': 'application/json',
+		});
+		expect(JSON.parse(init2.body as string).model).toBe('qwen2.5');
+	});
+
+	test('throws aggregated error when all configured endpoints fail', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('Network timeout'))
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 503,
+				statusText: 'Service Unavailable',
+				json: async () => ({ message: 'Model overloaded' }),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-primary',
+			model: 'gpt-4o-mini',
+			fallbacks: [
+				{
+					apiUrl: 'https://openrouter.ai/api/v1',
+					apiKey: 'sk-backup',
+					model: 'deepseek/deepseek-chat',
+				},
+			],
+		});
+
+		await expect(translator.translate('Hello', 'en', 'es')).rejects.toThrow(
+			/All 2 LLM endpoints failed/,
+		);
 	});
 });

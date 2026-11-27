@@ -15,6 +15,9 @@ export class OpenAICompatibleLLMTranslator extends LLMTranslator {
 		const mergedConfig: LLMTranslatorConfig = {
 			...defaultLLMTranslatorConfig,
 			...config,
+			fallbacks: Array.isArray(config.fallbacks)
+				? config.fallbacks
+				: defaultLLMTranslatorConfig.fallbacks,
 		};
 
 		const fetcher = new OpenAICompatibleLLMFetcher({
@@ -22,12 +25,14 @@ export class OpenAICompatibleLLMTranslator extends LLMTranslator {
 			apiKey: mergedConfig.apiKey,
 			model: mergedConfig.model,
 			temperature: mergedConfig.temperature,
+			fallbacks: mergedConfig.fallbacks,
 		});
 
 		super(fetcher, {
 			getPrompt: (texts, from, to) =>
 				encodePromptEnvelope(
 					buildLLMPromptMessages(mergedConfig, texts, from, to),
+					texts.length,
 				),
 		});
 	}

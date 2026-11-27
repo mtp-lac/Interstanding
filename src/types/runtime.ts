@@ -36,6 +36,17 @@ export const LangCodeWithAuto = new type.Type<string, string, unknown>(
 	type.identity,
 );
 
+export const LLMFallbackEndpoint = type.intersection([
+	type.type({
+		apiUrl: type.string,
+		apiKey: type.string,
+		model: type.string,
+	}),
+	type.partial({
+		temperature: type.number,
+	}),
+]);
+
 export const AppConfig = type.type({
 	language: type.string,
 	translatorModule: type.string,
@@ -110,8 +121,10 @@ export const AppConfig = type.type({
 		temperature: type.number,
 		systemPrompt: type.string,
 		customPrompt: type.string,
+		fallbacks: type.array(LLMFallbackEndpoint),
 	}),
 });
 
 export type AppConfigType = TypeOf<typeof AppConfig>;
 export type LLMTranslatorConfig = AppConfigType['llmTranslator'];
+export type LLMFallbackEndpointConfig = TypeOf<typeof LLMFallbackEndpoint>;

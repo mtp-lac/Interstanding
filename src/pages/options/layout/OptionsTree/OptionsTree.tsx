@@ -7,11 +7,178 @@ import { Button } from '../../../../components/primitives/Button/Button.bundle/d
 import { Select } from '../../../../components/primitives/Select/Select.bundle/desktop';
 import { Textarea } from '../../../../components/primitives/Textarea/Textarea.bundle/desktop';
 import { Textinput } from '../../../../components/primitives/Textinput/Textinput.bundle/desktop';
-import { AppConfigType } from '../../../../types/runtime';
+import { defaultLLMFallbackEndpoint } from '../../../../lib/translators/llm';
+import { AppConfigType, LLMFallbackEndpointConfig } from '../../../../types/runtime';
 
 import { OptionSection } from '../OptionSection/OptionSection';
 import { cnOptionsPage } from '../OptionsPage';
 import { PageSection } from '../PageSection/PageSection';
+
+export interface LLMFallbacksEditorLabels {
+	addButton: string;
+	removeButton: string;
+	moveUpButton: string;
+	moveDownButton: string;
+	itemTitle: string;
+	apiUrlPlaceholder: string;
+	apiKeyPlaceholder: string;
+	modelPlaceholder: string;
+	temperaturePlaceholder: string;
+}
+
+const DEFAULT_FALLBACK_LABELS: LLMFallbacksEditorLabels = {
+	addButton: 'Add fallback endpoint',
+	removeButton: 'Remove',
+	moveUpButton: 'Up',
+	moveDownButton: 'Down',
+	itemTitle: 'Fallback',
+	apiUrlPlaceholder: 'API base URL (leave blank to reuse primary endpoint)',
+	apiKeyPlaceholder: 'API key (optional; reuses primary key if URL is blank)',
+	modelPlaceholder: 'Model (e.g., gpt-4.1-mini, gpt-4o)',
+	temperaturePlaceholder: 'Temperature (optional; inherits primary)',
+};
+
+const LLMFallbacksEditor: FC<{
+	value: LLMFallbackEndpointConfig[];
+	onChange: (next: LLMFallbackEndpointConfig[]) => void;
+	error?: string;
+	labels?: Partial<LLMFallbacksEditorLabels>;
+}> = ({ value, onChange, error, labels: customLabels }) => {
+	const items = Array.isArray(value) ? value : [];
+	const labels = { ...DEFAULT_FALLBACK_LABELS, ...customLabels };
+
+	const updateItem = (index: number, patch: Partial<LLMFallbackEndpointConfig>) => {
+		onChange(items.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+	};
+
+	const moveItem = (index: number, delta: -1 | 1) => {
+		const target = index + delta;
+		if (target < 0 || target >= items.length) return;
+		const next = [...items];
+		const [moved] = next.splice(index, 1);
+		next.splice(target, 0, moved);
+		onChange(next);
+	};
+
+	return (
+		<div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+			{items.map((item, index) => (
+				<div
+					key={index}
+					style={{
+						display: 'flex',
+						flexDirection: 'column',
+						gap: '8px',
+						padding: '10px',
+						border: '1px solid rgba(128, 128, 128, 0.35)',
+						borderRadius: '6px',
+					}}
+				>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'space-between',
+							gap: '8px',
+						}}
+					>
+						<strong>
+							{labels.itemTitle} #{index + 1}
+						</strong>
+						<div style={{ display: 'flex', gap: '6px' }}>
+							<Button
+								view="default"
+								disabled={index === 0}
+								onPress={() => moveItem(index, -1)}
+							>
+								{labels.moveUpButton}
+							</Button>
+							<Button
+								view="default"
+								disabled={index === items.length - 1}
+								onPress={() => moveItem(index, 1)}
+							>
+								{labels.moveDownButton}
+							</Button>
+							<Button
+								view="default"
+								onPress={() =>
+									onChange(items.filter((_, i) => i !== index))
+								}
+							>
+								{labels.removeButton}
+							</Button>
+						</div>
+					</div>
+					<Textinput
+						state={error !== undefined ? 'error' : undefined}
+						value={typeof item.apiUrl === 'string' ? item.apiUrl : ''}
+						placeholder={labels.apiUrlPlaceholder}
+						spellCheck={false}
+						onInputText={(apiUrl) => updateItem(index, { apiUrl })}
+					/>
+					<Textinput
+						state={error !== undefined ? 'error' : undefined}
+						value={typeof item.apiKey === 'string' ? item.apiKey : ''}
+						placeholder={labels.apiKeyPlaceholder}
+						controlProps={{ type: 'password' }}
+						spellCheck={false}
+						onInputText={(apiKey) => updateItem(index, { apiKey })}
+					/>
+					<Textinput
+						state={error !== undefined ? 'error' : undefined}
+						value={typeof item.model === 'string' ? item.model : ''}
+						placeholder={labels.modelPlaceholder}
+						spellCheck={false}
+						onInputText={(model) => updateItem(index, { model })}
+					/>
+					<Textinput
+						state={error !== undefined ? 'error' : undefined}
+						value={
+							typeof item.temperature === 'number' &&
+							Number.isFinite(item.temperature)
+								? String(item.temperature)
+								: ''
+						}
+						placeholder={labels.temperaturePlaceholder}
+						spellCheck={false}
+						onInputText={(rawTemp) => {
+							const trimmed = rawTemp.trim();
+							if (trimmed === '') {
+								onChange(
+									items.map((entry, i) =>
+										i === index
+											? {
+													apiUrl: item.apiUrl,
+													apiKey: item.apiKey,
+													model: item.model,
+												}
+											: entry,
+									),
+								);
+								return;
+							}
+							const parsed = Number(trimmed);
+							if (Number.isFinite(parsed)) {
+								updateItem(index, { temperature: parsed });
+							}
+						}}
+					/>
+				</div>
+			))}
+			<div>
+				<Button
+					view="default"
+					onPress={() =>
+						onChange([...items, { ...defaultLLMFallbackEndpoint }])
+					}
+				>
+					{labels.addButton}
+				</Button>
+			</div>
+		</div>
+	);
+};
 
 export interface OptionSelectList {
 	type: 'SelectList';
@@ -64,6 +231,11 @@ export interface OptionHotkey {
 	type: 'Hotkey';
 }
 
+export interface OptionLLMFallbacks {
+	type: 'LLMFallbacks';
+	labels?: Partial<LLMFallbacksEditorLabels>;
+}
+
 export interface OptionItem {
 	title?: string;
 	description?: ReactNode;
@@ -80,7 +252,8 @@ export interface OptionItem {
 		| OptionCheckbox
 		| OptionCheckboxGroup
 		| OptionButton
-		| OptionHotkey;
+		| OptionHotkey
+		| OptionLLMFallbacks;
 }
 
 export interface OptionsGroup {
@@ -257,6 +430,17 @@ export const OptionsTree: FC<OptionsTreeProps> = ({
 							value={value}
 							setValue={(newValue) => {
 								setOptionValueProxy(path, newValue);
+							}}
+						/>
+					);
+				case 'LLMFallbacks':
+					return (
+						<LLMFallbacksEditor
+							value={Array.isArray(value) ? value : []}
+							error={error}
+							labels={option.labels}
+							onChange={(nextValue) => {
+								setOptionValueProxy(path, nextValue);
 							}}
 						/>
 					);

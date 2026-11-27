@@ -17,6 +17,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,
@@ -149,6 +150,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,
@@ -281,6 +283,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,
@@ -413,6 +416,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,
@@ -545,6 +549,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,
@@ -677,6 +682,7 @@ If the source language is "auto", detect the source language automatically.
 Return ONLY a valid JSON array of translated strings with the exact same length and order.
 
 {{texts}}",
+    "fallbacks": [],
     "model": "gpt-4o-mini",
     "systemPrompt": "You are a professional translator. Translate accurately and naturally while preserving original meaning, tone, punctuation, and formatting. Never add explanations, notes, or commentary.",
     "temperature": 0,

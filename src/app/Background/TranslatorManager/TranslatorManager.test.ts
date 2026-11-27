@@ -178,6 +178,7 @@ test('TranslatorManager passes llmTranslator config to translator constructor an
 		temperature: 0,
 		systemPrompt: 'sys',
 		customPrompt: 'user {{texts}}',
+		fallbacks: [],
 	};
 
 	const translatorManager = new TranslatorManager(
@@ -198,6 +199,13 @@ test('TranslatorManager passes llmTranslator config to translator constructor an
 	const updatedLlmConfig = {
 		...initialLlmConfig,
 		model: 'model-b',
+		fallbacks: [
+			{
+				apiUrl: 'https://openrouter.ai/api/v1',
+				apiKey: 'sk-2',
+				model: 'model-c',
+			},
+		],
 	};
 	translatorManager.setConfig({
 		...defaultConfig,
