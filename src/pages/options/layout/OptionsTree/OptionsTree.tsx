@@ -1,4 +1,12 @@
-import React, { FC, ReactNode, useCallback, useMemo, useState } from 'react';
+import React, {
+	FC,
+	ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { Checkbox } from 'react-elegant-ui/esm/components/Checkbox/Checkbox.bundle/desktop';
 import { get, isEqual } from 'lodash';
 
@@ -119,6 +127,57 @@ interface FetchedEndpointState {
 	statusMessage?: string;
 	errorMessage?: string;
 }
+
+const NumberInput: FC<{
+	value: unknown;
+	placeholder?: string;
+	error?: string;
+	allowEmpty?: boolean;
+	onChangeNumber: (next: number | string | undefined) => void;
+}> = ({ value, placeholder, error, allowEmpty = false, onChangeNumber }) => {
+	const externalText =
+		typeof value === 'number' && Number.isFinite(value)
+			? String(value)
+			: typeof value === 'string'
+				? value
+				: '';
+	const [draft, setDraft] = useState<string>(externalText);
+	const lastEmittedRef = useRef<unknown>(value);
+
+	useEffect(() => {
+		if (value !== lastEmittedRef.current) {
+			lastEmittedRef.current = value;
+			setDraft(externalText);
+		}
+	}, [externalText, value]);
+
+	return (
+		<Textinput
+			state={error !== undefined ? 'error' : undefined}
+			value={draft}
+			placeholder={placeholder}
+			spellCheck={false}
+			onInputText={(raw) => {
+				setDraft(raw);
+				const trimmed = raw.trim();
+				if (trimmed === '') {
+					const nextValue = allowEmpty ? undefined : '';
+					lastEmittedRef.current = nextValue;
+					onChangeNumber(nextValue);
+					return;
+				}
+				const parsed = Number(trimmed);
+				if (Number.isFinite(parsed)) {
+					lastEmittedRef.current = parsed;
+					onChangeNumber(parsed);
+				} else if (!allowEmpty) {
+					lastEmittedRef.current = raw;
+					onChangeNumber(raw);
+				}
+			}}
+		/>
+	);
+};
 
 const LLMFallbacksEditor: FC<{
 	value: LLMFallbackEndpointConfig[];
@@ -391,19 +450,13 @@ const LLMFallbacksEditor: FC<{
 								}
 							}}
 						/>
-						<Textinput
-							state={error !== undefined ? 'error' : undefined}
-							value={
-								typeof item.temperature === 'number' &&
-								Number.isFinite(item.temperature)
-									? String(item.temperature)
-									: ''
-							}
+						<NumberInput
+							error={error}
+							value={item.temperature}
 							placeholder={labels.temperaturePlaceholder}
-							spellCheck={false}
-							onInputText={(rawTemp) => {
-								const trimmed = rawTemp.trim();
-								if (trimmed === '') {
+							allowEmpty
+							onChangeNumber={(nextTemp) => {
+								if (typeof nextTemp !== 'number') {
 									const {
 										temperature: _omitted,
 										...restWithoutTemperature
@@ -415,10 +468,7 @@ const LLMFallbacksEditor: FC<{
 									);
 									return;
 								}
-								const parsed = Number(trimmed);
-								if (Number.isFinite(parsed)) {
-									updateItem(index, { temperature: parsed });
-								}
+								updateItem(index, { temperature: nextTemp });
 							}}
 						/>
 					</div>
@@ -724,16 +774,11 @@ export const OptionsTree: FC<OptionsTreeProps> = ({
 					);
 				case 'InputNumber':
 					return (
-						<Textinput
-							state={error !== undefined ? 'error' : undefined}
+						<NumberInput
+							error={error}
 							value={value}
-							spellCheck={false}
-							onInputText={(value) => {
-								const parsedNumber = +value;
-								setOptionValueProxy(
-									path,
-									isNaN(parsedNumber) ? value : parsedNumber,
-								);
+							onChangeNumber={(nextValue) => {
+								setOptionValueProxy(path, nextValue);
 							}}
 						/>
 					);

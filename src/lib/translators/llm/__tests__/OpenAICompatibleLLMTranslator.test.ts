@@ -37,6 +37,21 @@ describe('resolveChatCompletionsUrl', () => {
 			'https://api.openai.com/v1/chat/completions',
 		);
 	});
+
+	test('preserves query parameters when resolving chat completions URL', () => {
+		expect(
+			resolveChatCompletionsUrl(
+				'https://my-resource.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-06-01',
+			),
+		).toBe(
+			'https://my-resource.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-06-01',
+		);
+		expect(
+			resolveChatCompletionsUrl(
+				'https://proxy.example.com/v1/?api-version=2024-06-01',
+			),
+		).toBe('https://proxy.example.com/v1/chat/completions?api-version=2024-06-01');
+	});
 });
 
 describe('resolveModelsUrl', () => {
@@ -51,6 +66,11 @@ describe('resolveModelsUrl', () => {
 			'http://localhost:11434/v1/models',
 		);
 		expect(resolveModelsUrl('')).toBe('https://api.openai.com/v1/models');
+		expect(
+			resolveModelsUrl(
+				'https://proxy.example.com/v1/chat/completions?api-version=2024-06-01',
+			),
+		).toBe('https://proxy.example.com/v1/models?api-version=2024-06-01');
 	});
 });
 
@@ -313,6 +333,21 @@ describe('buildLLMPromptMessages', () => {
 		expect(userPrompt).toContain('Translate from English to French.');
 		expect(userPrompt).toContain('same length (1)');
 		expect(userPrompt).toContain('["Good morning"]');
+	});
+
+	test('sanitizes lone UTF-16 surrogates in input texts', () => {
+		const { userPrompt } = buildLLMPromptMessages(
+			{
+				systemPrompt: '',
+				customPrompt: 'Translate: {{texts}}',
+			},
+			['Bad \uD800 surrogate \uDC00 text'],
+			'en',
+			'es',
+		);
+
+		expect(userPrompt).not.toMatch(/\\ud[89a-f][0-9a-f]{2}/i);
+		expect(userPrompt).toContain('Bad \uFFFD surrogate \uFFFD text');
 	});
 });
 
@@ -600,5 +635,486 @@ describe('OpenAICompatibleLLMTranslator', () => {
 			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
 		);
 		expect(secondBody.reasoning_effort).toBeUndefined();
+	});
+
+	test('strips redundant Bearer prefix from apiKey', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				choices: [{ message: { content: '["Hola"]' } }],
+			}),
+		});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'Bearer sk-duplicated',
+			model: 'gpt-4o-mini',
+		});
+
+		await expect(translator.translate('Hello', 'en', 'es')).resolves.toBe('Hola');
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(init.headers).toEqual({
+			'Content-Type': 'application/json',
+			Authorization: 'Bearer sk-duplicated',
+		});
+	});
+
+	test('recovers from HTTP 400 when temperature is unsupported (e.g. o3/gpt-5/Claude thinking) and caches adaptation', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message:
+								"Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported.",
+							param: 'temperature',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Mundo"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'gpt-5-mini',
+			temperature: 0,
+			thinkingLevel: 'medium',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(await translator.translate('World', 'en', 'es')).toBe('Mundo');
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+
+		const firstBody = JSON.parse(
+			(fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+		);
+		expect(firstBody.temperature).toBe(0);
+		expect(firstBody.reasoning_effort).toBe('medium');
+
+		const secondBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(secondBody.temperature).toBeUndefined();
+		expect(secondBody.reasoning_effort).toBe('medium');
+
+		// Cached: third request omits temperature immediately on first try
+		const thirdBody = JSON.parse(
+			(fetchMock.mock.calls[2] as [string, RequestInit])[1].body as string,
+		);
+		expect(thirdBody.temperature).toBeUndefined();
+		expect(thirdBody.reasoning_effort).toBe('medium');
+	});
+
+	test('recovers from HTTP 400 when reasoning_effort is unsupported by model', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message:
+								"Unsupported parameter: 'reasoning_effort' is not supported with this model.",
+							param: 'reasoning_effort',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'gpt-4o-mini',
+			thinkingLevel: 'none',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.reasoning_effort).toBeUndefined();
+		expect(retryBody.temperature).toBe(0);
+	});
+
+	test('downgrades xhigh reasoning_effort to high when model rejects xhigh with error.param', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message:
+								"Invalid value: 'xhigh'. Supported values are: 'low', 'medium', and 'high'.",
+							param: 'reasoning_effort',
+							code: 'invalid_value',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'o3-mini',
+			thinkingLevel: 'xhigh',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.reasoning_effort).toBe('high');
+	});
+
+	test('recovers from Gemini JSON array HTTP 400 error on budget 0 / thinking none', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: '',
+				text: async () =>
+					JSON.stringify([
+						{
+							error: {
+								code: 400,
+								message:
+									'Budget 0 is invalid. This model only works in thinking mode.',
+								status: 'INVALID_ARGUMENT',
+							},
+						},
+					]),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+			apiKey: 'AIza-test',
+			model: 'gemini-2.5-pro',
+			thinkingLevel: 'none',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.reasoning_effort).toBeUndefined();
+	});
+
+	test('recovers from HTTP 400 when system role is rejected by merging system prompt into user message', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: '',
+				text: async () =>
+					JSON.stringify([
+						{
+							error: {
+								code: 400,
+								message:
+									'Developer instruction is not enabled for models/gemma-3-27b-it',
+								status: 'INVALID_ARGUMENT',
+							},
+						},
+					]),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+			apiKey: 'AIza-test',
+			model: 'gemma-3-27b-it',
+			systemPrompt: 'Act as a precise translator.',
+			customPrompt: 'Translate: {{texts}}',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.messages).toEqual([
+			{
+				role: 'user',
+				content: 'Act as a precise translator.\n\nTranslate: ["Hello"]',
+			},
+		]);
+	});
+
+	test('recovers across combined HTTP 400 rejections (temperature + reasoning_effort + system role)', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message: 'temperature is not supported with this model',
+							param: 'temperature',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message: 'reasoning_effort is not supported with this model',
+							param: 'reasoning_effort',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: {
+							message:
+								"Unsupported value: 'messages[0].role' does not support 'system' with this model.",
+							param: 'messages[0].role',
+						},
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.openai.com/v1',
+			apiKey: 'sk-test',
+			model: 'o1-mini',
+			temperature: 0,
+			thinkingLevel: 'low',
+			systemPrompt: 'Translate accurately.',
+			customPrompt: 'Texts: {{texts}}',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+
+		const finalBody = JSON.parse(
+			(fetchMock.mock.calls[3] as [string, RequestInit])[1].body as string,
+		);
+		expect(finalBody).toEqual({
+			model: 'o1-mini',
+			messages: [
+				{
+					role: 'user',
+					content: 'Translate accurately.\n\nTexts: ["Hello"]',
+				},
+			],
+		});
+	});
+
+	test('recovers from HTTP 422 FastAPI/Mistral extra field rejection on reasoning_effort', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 422,
+				statusText: 'Unprocessable Entity',
+				text: async () =>
+					JSON.stringify({
+						detail: [
+							{
+								loc: ['body', 'reasoning_effort'],
+								msg: 'Extra inputs are not permitted',
+							},
+						],
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Bonjour"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://api.mistral.ai/v1',
+			apiKey: 'mistral-key',
+			model: 'mistral-small-latest',
+			thinkingLevel: 'low',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'fr')).toBe('Bonjour');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.reasoning_effort).toBeUndefined();
+	});
+
+	test('recovers from opaque HTTP 400 with empty detail by stripping optional fields progressively', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: '',
+				text: async () => '',
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://proxy.example.com/v1',
+			apiKey: 'sk-test',
+			model: 'custom-model',
+			thinkingLevel: 'low',
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const retryBody = JSON.parse(
+			(fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+		);
+		expect(retryBody.reasoning_effort).toBeUndefined();
+	});
+
+	test('fails fast without redundant adaptation retries on unrecoverable 400 (model not found) and falls back', async () => {
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 400,
+				statusText: 'Bad Request',
+				text: async () =>
+					JSON.stringify({
+						error: "model 'nonexistent-model' not found",
+					}),
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				json: async () => ({
+					choices: [{ message: { content: '["Hola"]' } }],
+				}),
+			});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'http://localhost:11434/v1',
+			apiKey: '',
+			model: 'nonexistent-model',
+			thinkingLevel: 'low',
+			fallbacks: [{ apiUrl: '', apiKey: '', model: 'qwen2.5' }],
+		});
+
+		expect(await translator.translate('Hello', 'en', 'es')).toBe('Hola');
+		// Only 1 call to primary (no adaptation retries) + 1 call to fallback
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	test('surfaces detailed error messages from Ollama string error, OpenRouter metadata.raw, and plain text 400 responses', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 400,
+			statusText: '',
+			text: async () =>
+				JSON.stringify({
+					error: {
+						message: 'Provider returned error',
+						metadata: {
+							raw: JSON.stringify({
+								error: {
+									message:
+										'context_length_exceeded: maximum context length is 4096 tokens',
+								},
+							}),
+						},
+					},
+				}),
+		});
+		globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+		const translator = new OpenAICompatibleLLMTranslator({
+			apiUrl: 'https://openrouter.ai/api/v1',
+			apiKey: 'sk-or-test',
+			model: 'some/model',
+		});
+
+		await expect(translator.translate('Hello', 'en', 'es')).rejects.toThrow(
+			/context_length_exceeded: maximum context length is 4096 tokens/,
+		);
 	});
 });
